@@ -296,6 +296,11 @@
         .toast.info {
             background: #17a2b8;
         }
+
+        .loading {
+            color: #6c757d;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -331,7 +336,7 @@
                 <div class="card">
                     <div class="card-title">Demanda Atual</div>
                     <div id="currentDemand">
-                        Nenhuma demanda ativa
+                        <span class="loading">Carregando...</span>
                     </div>
                 </div>
                 <div class="card">
@@ -377,7 +382,7 @@
             <div class="card">
                 <div class="card-title">Demanda Atual</div>
                 <div id="gerenteDemandInfo">
-                    Carregando...
+                    <span class="loading">Carregando demanda...</span>
                 </div>
             </div>
 
@@ -385,6 +390,7 @@
                 <button class="btn btn-primary" onclick="selecionarTodos()">Selecionar Todos</button>
                 <button class="btn btn-primary" onclick="desselecionarTodos()">Desselecionar Todos</button>
                 <button class="btn btn-success" onclick="enviarEscala()">Enviar Escala</button>
+                <button class="btn btn-warning" onclick="recarregarDemanda()">Recarregar Demanda</button>
             </div>
 
             <div class="table-container">
@@ -447,12 +453,12 @@
             MARCIO_SHEET_ID: '1SvKZBZ3FdZRFk5iXxg26WFqMgMiyqMAmQt2VzCY31iY',
             JOAO_SHEET_ID: '1qxd-74E1VOJccO7FDOy18TX6VznvNTfHb7sSOcMTUI4',
             N8N_WEBHOOK: 'https://n8n.hublanup.com.br/webhook',
-            NUMERO_TESTE: '5511953909792', // Número atualizado
+            NUMERO_TESTE: '5511953909792',
             TEMPLATE_ID: '68cc74d8ae6ca49eaf1c334e'
         };
 
-        // Dados mockados para teste
-        const MOCK_DATA = {
+        // Dados compartilhados
+        const SHARED_DATA = {
             demandaAtual: null,
             escalasRecebidas: [],
             gerentes: {
@@ -501,9 +507,8 @@
             location.reload();
         }
 
-        // RH Functions
-        async function loadRHDashboard() {
-            // Carregar demanda atual da planilha
+        // Função para carregar demanda ativa da planilha
+        async function loadDemandaAtiva() {
             try {
                 const response = await fetch(
                     `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.UNIFIED_SHEET_ID}/values/eventos_criados?key=${CONFIG.SHEETS_API_KEY}`
@@ -514,47 +519,66 @@
                     // Pegar a última demanda ativa
                     const lastRow = data.values[data.values.length - 1];
                     if (lastRow[5] === 'ATIVO') {
-                        MOCK_DATA.demandaAtual = {
+                        SHARED_DATA.demandaAtual = {
                             local: lastRow[0],
-                            evento: lastRow[1],  // Agora o evento é usado como nome principal
-                            dataEvento: lastRow[3],
-                            dataLimite: lastRow[4],
+                            evento: lastRow[1],
+                            dataEvento: lastRow[2],
+                            dataLimite: lastRow[3],
+                            dataCriacao: lastRow[4],
                             status: lastRow[5]
                         };
-                        updateDemandDisplay();
+                        return true;
                     }
                 }
+                SHARED_DATA.demandaAtual = null;
+                return false;
             } catch (error) {
-                console.log('Usando dados mockados:', error);
-                // Usar dados mockados se falhar
-                MOCK_DATA.demandaAtual = {
-                    evento: 'Botafogo x Flamengo - Campeonato Brasileiro',
-                    local: 'Estádio Nilton Santos',
-                    dataEvento: '25/01/2025 21:00',
-                    dataLimite: '22/01/2025 18:00',
+                console.log('Erro ao carregar demanda:', error);
+                // Usar dados de teste se falhar
+                SHARED_DATA.demandaAtual = {
+                    evento: 'bot v8 - EVENTO TESTE',
+                    local: 'Estadio Nilton Santos',
+                    dataEvento: '2025-10-10 10:00',
+                    dataLimite: '2025-10-10 09:00',
                     status: 'ATIVO'
                 };
+                return true;
+            }
+        }
+
+        // RH Functions
+        async function loadRHDashboard() {
+            document.getElementById('currentDemand').innerHTML = '<span class="loading">Carregando...</span>';
+            
+            const hasDemanda = await loadDemandaAtiva();
+            
+            if (hasDemanda && SHARED_DATA.demandaAtual) {
                 updateDemandDisplay();
+            } else {
+                document.getElementById('currentDemand').innerHTML = 'Nenhuma demanda ativa';
             }
         }
 
         function updateDemandDisplay() {
-            if (MOCK_DATA.demandaAtual) {
-                document.getElementById('currentDemand').innerHTML = `
-                    <strong>${MOCK_DATA.demandaAtual.evento}</strong><br>
-                    Local: ${MOCK_DATA.demandaAtual.local}<br>
-                    Data Evento: ${MOCK_DATA.demandaAtual.dataEvento}<br>
-                    Data Limite: ${MOCK_DATA.demandaAtual.dataLimite}<br>
-                    Status: <span style="color: green;">${MOCK_DATA.demandaAtual.status}</span>
-                `;
+            if (SHARED_DATA.demandaAtual) {
+                // Atualizar display do RH
+                if (document.getElementById('currentDemand')) {
+                    document.getElementById('currentDemand').innerHTML = `
+                        <strong>${SHARED_DATA.demandaAtual.evento}</strong><br>
+                        Local: ${SHARED_DATA.demandaAtual.local}<br>
+                        Data Evento: ${SHARED_DATA.demandaAtual.dataEvento}<br>
+                        Data Limite: ${SHARED_DATA.demandaAtual.dataLimite}<br>
+                        Status: <span style="color: green;">${SHARED_DATA.demandaAtual.status}</span>
+                    `;
+                }
                 
-                // Atualizar dashboard do gerente também
+                // Atualizar display do gerente
                 if (document.getElementById('gerenteDemandInfo')) {
                     document.getElementById('gerenteDemandInfo').innerHTML = `
-                        <strong>${MOCK_DATA.demandaAtual.evento}</strong><br>
-                        Local: ${MOCK_DATA.demandaAtual.local}<br>
-                        Data Evento: ${MOCK_DATA.demandaAtual.dataEvento}<br>
-                        Data Limite: ${MOCK_DATA.demandaAtual.dataLimite}<br>
+                        <strong>${SHARED_DATA.demandaAtual.evento}</strong><br>
+                        Local: ${SHARED_DATA.demandaAtual.local}<br>
+                        Data Evento: ${SHARED_DATA.demandaAtual.dataEvento}<br>
+                        Data Limite: ${SHARED_DATA.demandaAtual.dataLimite}<br>
                         Status: <span style="color: green;">ESCALA ABERTA</span>
                     `;
                 }
@@ -570,7 +594,7 @@
             
             const formData = {
                 local: document.getElementById('local').value,
-                evento: document.getElementById('evento').value, // O evento agora é o identificador principal
+                evento: document.getElementById('evento').value,
                 dataEvento: document.getElementById('dataEvento').value,
                 dataLimite: document.getElementById('dataLimite').value,
                 dataCriacao: new Date().toISOString(),
@@ -589,7 +613,7 @@
                 if (response.ok) {
                     showToast('Demanda criada com sucesso!', 'success');
                     closeModal('createDemandModal');
-                    MOCK_DATA.demandaAtual = formData;
+                    SHARED_DATA.demandaAtual = formData;
                     updateDemandDisplay();
                     document.getElementById('createDemandForm').reset();
                 }
@@ -597,7 +621,7 @@
                 console.error(error);
                 showToast('Erro ao criar demanda (verifique o n8n)', 'error');
                 // Salvar localmente mesmo com erro
-                MOCK_DATA.demandaAtual = formData;
+                SHARED_DATA.demandaAtual = formData;
                 updateDemandDisplay();
                 closeModal('createDemandModal');
             }
@@ -607,9 +631,55 @@
             document.getElementById(modalId).classList.remove('show');
         }
 
+        // Gerente Functions
+        async function loadGerenteData(gerente) {
+            document.getElementById('gerenteDemandInfo').innerHTML = '<span class="loading">Carregando demanda...</span>';
+            
+            // Carregar demanda ativa
+            const hasDemanda = await loadDemandaAtiva();
+            
+            if (hasDemanda && SHARED_DATA.demandaAtual) {
+                updateDemandDisplay();
+            } else {
+                document.getElementById('gerenteDemandInfo').innerHTML = 
+                    '<span style="color: #6c757d;">Nenhuma demanda ativa</span>';
+            }
+            
+            // Carregar profissionais do gerente
+            const tbody = document.getElementById('gerenteTableBody');
+            const data = SHARED_DATA.gerentes[gerente] || [];
+            
+            tbody.innerHTML = data.map((prof, index) => `
+                <tr>
+                    <td><input type="checkbox" value="${index}"></td>
+                    <td>${prof.nome}</td>
+                    <td>${prof.telefone}</td>
+                    <td>${prof.funcao}</td>
+                    <td>${prof.status}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Função para recarregar demanda (botão do gerente)
+        async function recarregarDemanda() {
+            showToast('Recarregando demanda...', 'info');
+            document.getElementById('gerenteDemandInfo').innerHTML = '<span class="loading">Carregando...</span>';
+            
+            const hasDemanda = await loadDemandaAtiva();
+            
+            if (hasDemanda && SHARED_DATA.demandaAtual) {
+                updateDemandDisplay();
+                showToast('Demanda atualizada!', 'success');
+            } else {
+                document.getElementById('gerenteDemandInfo').innerHTML = 
+                    '<span style="color: #6c757d;">Nenhuma demanda ativa</span>';
+                showToast('Nenhuma demanda encontrada', 'info');
+            }
+        }
+
         // Notificar gerentes (teste)
         async function notificarGerentes() {
-            if (!MOCK_DATA.demandaAtual) {
+            if (!SHARED_DATA.demandaAtual) {
                 showToast('Crie uma demanda primeiro', 'error');
                 return;
             }
@@ -621,9 +691,9 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        evento: MOCK_DATA.demandaAtual.evento,
-                        dataLimite: MOCK_DATA.demandaAtual.dataLimite,
-                        local: MOCK_DATA.demandaAtual.local,
+                        evento: SHARED_DATA.demandaAtual.evento,
+                        dataLimite: SHARED_DATA.demandaAtual.dataLimite,
+                        local: SHARED_DATA.demandaAtual.local,
                         numeroTeste: CONFIG.NUMERO_TESTE
                     })
                 });
@@ -641,7 +711,6 @@
             table.classList.toggle('hidden');
             
             if (!table.classList.contains('hidden')) {
-                // Tentar carregar da planilha
                 try {
                     const response = await fetch(
                         `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.UNIFIED_SHEET_ID}/values/Dados_unificados?key=${CONFIG.SHEETS_API_KEY}`
@@ -669,7 +738,6 @@
                     }
                 } catch (error) {
                     console.log('Usando dados mockados:', error);
-                    // Usar dados mockados
                     loadMockUnifiedData();
                 }
             }
@@ -678,8 +746,8 @@
         function loadMockUnifiedData() {
             const tbody = document.getElementById('unifiedTableBody');
             const allProfs = [
-                ...MOCK_DATA.gerentes.marcio.map(p => ({...p, gerente: 'MARCIO'})),
-                ...MOCK_DATA.gerentes.joao.map(p => ({...p, gerente: 'JOAO'}))
+                ...SHARED_DATA.gerentes.marcio.map(p => ({...p, gerente: 'MARCIO'})),
+                ...SHARED_DATA.gerentes.joao.map(p => ({...p, gerente: 'JOAO'}))
             ];
             
             tbody.innerHTML = allProfs.map((prof, index) => `
@@ -712,7 +780,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        demanda: MOCK_DATA.demandaAtual,
+                        demanda: SHARED_DATA.demandaAtual,
                         profissionais: [{
                             nome: 'TESTE',
                             telefone: CONFIG.NUMERO_TESTE,
@@ -731,7 +799,7 @@
 
         // Encerrar demanda
         async function encerrarDemanda() {
-            if (!MOCK_DATA.demandaAtual) {
+            if (!SHARED_DATA.demandaAtual) {
                 showToast('Nenhuma demanda ativa', 'error');
                 return;
             }
@@ -742,42 +810,19 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            demandaId: MOCK_DATA.demandaAtual.evento, // Usando evento como ID
+                            demandaId: SHARED_DATA.demandaAtual.evento,
                             timestamp: new Date().toISOString()
                         })
                     });
                     
                     showToast('Demanda encerrada e dados consolidados', 'success');
-                    MOCK_DATA.demandaAtual = null;
+                    SHARED_DATA.demandaAtual = null;
                     document.getElementById('currentDemand').innerHTML = 'Nenhuma demanda ativa';
                 } catch (error) {
                     console.error(error);
                     showToast('Erro ao encerrar demanda', 'error');
                 }
             }
-        }
-
-        // Gerente Functions
-        function loadGerenteData(gerente) {
-            if (MOCK_DATA.demandaAtual) {
-                updateDemandDisplay();
-            } else {
-                document.getElementById('gerenteDemandInfo').innerHTML = 
-                    '<span style="color: #6c757d;">Nenhuma demanda ativa</span>';
-            }
-            
-            const tbody = document.getElementById('gerenteTableBody');
-            const data = MOCK_DATA.gerentes[gerente] || [];
-            
-            tbody.innerHTML = data.map((prof, index) => `
-                <tr>
-                    <td><input type="checkbox" value="${index}"></td>
-                    <td>${prof.nome}</td>
-                    <td>${prof.telefone}</td>
-                    <td>${prof.funcao}</td>
-                    <td>${prof.status}</td>
-                </tr>
-            `).join('');
         }
 
         // Enviar escala (gerente)
@@ -789,7 +834,7 @@
                 return;
             }
             
-            if (!MOCK_DATA.demandaAtual) {
+            if (!SHARED_DATA.demandaAtual) {
                 showToast('Nenhuma demanda ativa', 'error');
                 return;
             }
@@ -799,7 +844,7 @@
                 
                 const gerente = currentUser.name.toLowerCase();
                 const selected = Array.from(checkboxes).map(cb => 
-                    MOCK_DATA.gerentes[gerente][cb.value]
+                    SHARED_DATA.gerentes[gerente][cb.value]
                 );
                 
                 const response = await fetch(`${CONFIG.N8N_WEBHOOK}/enviar-escala-gerente`, {
@@ -807,7 +852,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         gerente: currentUser.name,
-                        demandaId: MOCK_DATA.demandaAtual.evento, // Usando evento como ID
+                        demandaId: SHARED_DATA.demandaAtual.evento,
                         profissionais: selected,
                         timestamp: new Date().toISOString()
                     })
@@ -828,7 +873,6 @@
             } else {
                 selectedProfessionals.add(index);
             }
-            updateSelectionDisplay();
         }
 
         function toggleAll() {
@@ -843,7 +887,6 @@
                     selectedProfessionals.delete(index);
                 }
             });
-            updateSelectionDisplay();
         }
 
         function toggleAllGerente() {
@@ -867,11 +910,6 @@
             document.getElementById('selectAllGerente').checked = false;
         }
 
-        function updateSelectionDisplay() {
-            const count = selectedProfessionals.size;
-            console.log(`${count} profissionais selecionados`);
-        }
-
         // Toast notification
         function showToast(message, type = 'info') {
             const toast = document.getElementById('toast');
@@ -883,6 +921,8 @@
                 toast.classList.remove('show');
             }, 5000);
         }
+
+        console.log('Sistema de Escalas FLAP - Versão 2.0 Carregado');
     </script>
 </body>
 </html>
