@@ -418,12 +418,8 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="nomeEvento">Nome:</label>
-                    <input type="text" id="nomeEvento" placeholder="Ex: Botafogo x Flamengo" required>
-                </div>
-                <div class="form-group">
                     <label for="evento">Evento:</label>
-                    <input type="text" id="evento" placeholder="Ex: Campeonato Brasileiro - Rodada 35" required>
+                    <input type="text" id="evento" placeholder="Ex: Botafogo x Flamengo - Campeonato Brasileiro" required>
                 </div>
                 <div class="form-group">
                     <label for="dataEvento">Data do Evento:</label>
@@ -520,8 +516,7 @@
                     if (lastRow[5] === 'ATIVO') {
                         MOCK_DATA.demandaAtual = {
                             local: lastRow[0],
-                            nome: lastRow[1],
-                            evento: lastRow[2],
+                            evento: lastRow[1],  // Agora o evento é usado como nome principal
                             dataEvento: lastRow[3],
                             dataLimite: lastRow[4],
                             status: lastRow[5]
@@ -533,8 +528,7 @@
                 console.log('Usando dados mockados:', error);
                 // Usar dados mockados se falhar
                 MOCK_DATA.demandaAtual = {
-                    nome: 'Botafogo x Flamengo',
-                    evento: 'Campeonato Brasileiro',
+                    evento: 'Botafogo x Flamengo - Campeonato Brasileiro',
                     local: 'Estádio Nilton Santos',
                     dataEvento: '25/01/2025 21:00',
                     dataLimite: '22/01/2025 18:00',
@@ -547,8 +541,7 @@
         function updateDemandDisplay() {
             if (MOCK_DATA.demandaAtual) {
                 document.getElementById('currentDemand').innerHTML = `
-                    <strong>${MOCK_DATA.demandaAtual.nome}</strong><br>
-                    Evento: ${MOCK_DATA.demandaAtual.evento}<br>
+                    <strong>${MOCK_DATA.demandaAtual.evento}</strong><br>
                     Local: ${MOCK_DATA.demandaAtual.local}<br>
                     Data Evento: ${MOCK_DATA.demandaAtual.dataEvento}<br>
                     Data Limite: ${MOCK_DATA.demandaAtual.dataLimite}<br>
@@ -558,8 +551,7 @@
                 // Atualizar dashboard do gerente também
                 if (document.getElementById('gerenteDemandInfo')) {
                     document.getElementById('gerenteDemandInfo').innerHTML = `
-                        <strong>${MOCK_DATA.demandaAtual.nome}</strong><br>
-                        Evento: ${MOCK_DATA.demandaAtual.evento}<br>
+                        <strong>${MOCK_DATA.demandaAtual.evento}</strong><br>
                         Local: ${MOCK_DATA.demandaAtual.local}<br>
                         Data Evento: ${MOCK_DATA.demandaAtual.dataEvento}<br>
                         Data Limite: ${MOCK_DATA.demandaAtual.dataLimite}<br>
@@ -578,8 +570,7 @@
             
             const formData = {
                 local: document.getElementById('local').value,
-                nome: document.getElementById('nomeEvento').value,
-                evento: document.getElementById('evento').value,
+                evento: document.getElementById('evento').value, // O evento agora é o identificador principal
                 dataEvento: document.getElementById('dataEvento').value,
                 dataLimite: document.getElementById('dataLimite').value,
                 dataCriacao: new Date().toISOString(),
@@ -751,7 +742,7 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            demandaId: MOCK_DATA.demandaAtual.nome,
+                            demandaId: MOCK_DATA.demandaAtual.evento, // Usando evento como ID
                             timestamp: new Date().toISOString()
                         })
                     });
@@ -816,7 +807,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         gerente: currentUser.name,
-                        demandaId: MOCK_DATA.demandaAtual.nome,
+                        demandaId: MOCK_DATA.demandaAtual.evento, // Usando evento como ID
                         profissionais: selected,
                         timestamp: new Date().toISOString()
                     })
