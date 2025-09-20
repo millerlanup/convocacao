@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Escalas - FLAP (Teste)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+            min-height: 80vh;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
+        .test-mode {
+            background: #ffc107;
+            color: #000;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .user-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .user-badge {
+            background: #28a745;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .btn-logout {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 6px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        /* Login simplificado */
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 30px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .login-title {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 1.5rem;
+        }
+
+        .quick-login {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        /* Dashboard */
+        .dashboard {
+            padding: 20px;
+        }
+
+        .dashboard-title {
+            font-size: 1.5rem;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 15px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            z-index: 2000;
+            transform: translateX(400px);
+            transition: transform 0.3s;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.success {
+            background: #28a745;
+        }
+
+        .toast.error {
+            background: #dc3545;
+        }
+
+        .toast.info {
+            background: #17a2b8;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-mode">
+        ⚠️ MODO DE TESTE - Dados Simulados
+    </div>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container">
+        <h2 class="login-title">Sistema de Escalas - FLAP</h2>
+        <div class="quick-login">
+            <button class="btn btn-primary" onclick="loginAs('rh')">Entrar como RH</button>
+            <button class="btn btn-success" onclick="loginAs('marcio')">Entrar como MARCIO</button>
+            <button class="btn btn-success" onclick="loginAs('joao')">Entrar como JOÃO</button>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div id="mainContainer" class="container hidden">
+        <div class="header">
+            <h1>Sistema de Escalas - FLAP</h1>
+            <div class="user-info">
+                <span class="user-badge" id="userBadge"></span>
+                <button class="btn-logout" onclick="logout()">Sair</button>
+            </div>
+        </div>
+
+        <!-- RH Dashboard -->
+        <div id="rhDashboard" class="dashboard hidden">
+            <h2 class="dashboard-title">Dashboard RH</h2>
+            
+            <div class="cards-grid">
+                <div class="card">
+                    <div class="card-title">Demanda Atual</div>
+                    <div id="currentDemand">
+                        <strong>Botafogo x Flamengo</strong><br>
+                        Local: Estádio Nilton Santos<br>
+                        Data Limite: 22/01/2025 18:00<br>
+                        Status: <span style="color: green;">ATIVA</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Escalas Recebidas</div>
+                    <div id="receivedScales">0 escalas recebidas</div>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn btn-success" onclick="criarDemanda()">Criar Nova Demanda</button>
+                <button class="btn btn-primary" onclick="verEscalaUnificada()">Ver Escala Unificada</button>
+                <button class="btn btn-warning" onclick="enviarConvocacao()">Enviar Convocação (Teste)</button>
+                <button class="btn btn-warning" onclick="notificarGerentes()">Notificar Gerentes (Teste)</button>
+            </div>
+
+            <div id="unifiedTable" class="table-container hidden">
+                <table>
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAll"></th>
+                            <th>Nome</th>
+                            <th>Telefone</th>
+                            <th>Função</th>
+                            <th>Gerente</th>
+                        </tr>
+                    </thead>
+                    <tbody id="unifiedTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Gerente Dashboard -->
+        <div id="gerenteDashboard" class="dashboard hidden">
+            <h2 class="dashboard-title">Dashboard Gerente - <span id="gerenteName"></span></h2>
+            
+            <div class="card">
+                <div class="card-title">Demanda Atual</div>
+                <div>
+                    <strong>Botafogo x Flamengo</strong><br>
+                    Local: Estádio Nilton Santos<br>
+                    Data Limite: 22/01/2025 18:00<br>
+                    Status: <span style="color: green;">ESCALA ABERTA</span>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn btn-primary" onclick="selecionarTodos()">Selecionar Todos</button>
+                <button class="btn btn-success" onclick="enviarEscala()">Enviar Escala</button>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAllGerente"></th>
+                            <th>Nome</th>
+                            <th>Telefone</th>
+                            <th>Função</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gerenteTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // Configurações
+        const CONFIG = {
+            SHEETS_API_KEY: 'AIzaSyCCvdIC0TnINvn5s3TPwufzos-6sxZYFHk',
+            N8N_WEBHOOK: 'https://n8n.hublanup.com.br/webhook',
+            NUMERO_TESTE: '5511999999999', // COLOQUE SEU NÚMERO AQUI
+            TEMPLATE_ID: '68cc74d8ae6ca49eaf1c334e' // Template sem horários
+        };
+
+        // Dados mockados para teste
+        const MOCK_DATA = {
+            gerentes: {
+                marcio: [
+                    { nome: 'CARLOS SILVA', telefone: '11999999991', funcao: 'SEGURANÇA' },
+                    { nome: 'ANA COSTA', telefone: '11999999992', funcao: 'AUXILIAR' },
+                    { nome: 'PEDRO SANTOS', telefone: '11999999993', funcao: 'COORDENADOR' }
+                ],
+                joao: [
+                    { nome: 'MARIA OLIVEIRA', telefone: '11999999994', funcao: 'SEGURANÇA' },
+                    { nome: 'JOÃO SOUZA', telefone: '11999999995', funcao: 'AUXILIAR' },
+                    { nome: 'LUCAS LIMA', telefone: '11999999996', funcao: 'SUPERVISOR' }
+                ]
+            }
+        };
+
+        let currentUser = null;
+        let selectedProfessionals = [];
+
+        // Login rápido
+        function loginAs(type) {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('mainContainer').classList.remove('hidden');
+            
+            if (type === 'rh') {
+                currentUser = { type: 'rh', name: 'RH' };
+                document.getElementById('rhDashboard').classList.remove('hidden');
+            } else {
+                currentUser = { type: 'gerente', name: type.toUpperCase() };
+                document.getElementById('gerenteDashboard').classList.remove('hidden');
+                document.getElementById('gerenteName').textContent = currentUser.name;
+                loadGerenteData(type);
+            }
+            
+            document.getElementById('userBadge').textContent = currentUser.name;
+            showToast(`Logado como ${currentUser.name}`, 'success');
+        }
+
+        function logout() {
+            location.reload();
+        }
+
+        // Carregar dados do gerente
+        function loadGerenteData(gerente) {
+            const tbody = document.getElementById('gerenteTableBody');
+            const data = MOCK_DATA.gerentes[gerente] || [];
+            
+            tbody.innerHTML = data.map((prof, index) => `
+                <tr>
+                    <td><input type="checkbox" value="${index}"></td>
+                    <td>${prof.nome}</td>
+                    <td>${prof.telefone}</td>
+                    <td>${prof.funcao}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Criar demanda
+        async function criarDemanda() {
+            try {
+                showToast('Criando demanda...', 'info');
+                
+                const response = await fetch(`${CONFIG.N8N_WEBHOOK}/criar-demanda`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        local: 'Estadio Nilton Santos',
+                        jogo: 'Botafogo x Flamengo',
+                        evento: 'Campeonato Brasileiro',
+                        dataLimite: new Date().toISOString()
+                    })
+                });
+                
+                if (response.ok) {
+                    showToast('Demanda criada com sucesso!', 'success');
+                }
+            } catch (error) {
+                console.error(error);
+                showToast('Erro ao criar demanda (verifique o n8n)', 'error');
+            }
+        }
+
+        // Notificar gerentes (teste)
+        async function notificarGerentes() {
+            try {
+                showToast('Notificando gerentes...', 'info');
+                
+                // Envia notificação de teste para seu número
+                const response = await fetch(`${CONFIG.N8N_WEBHOOK}/notificar-gerentes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        evento: 'Teste de Notificação',
+                        dataLimite: new Date().toISOString(),
+                        local: 'Estadio Nilton Santos',
+                        numeroTeste: CONFIG.NUMERO_TESTE // Usar seu número
+                    })
+                });
+                
+                showToast('Notificação enviada para número de teste!', 'success');
+            } catch (error) {
+                console.error(error);
+                showToast('Erro ao notificar (verifique o n8n)', 'error');
+            }
+        }
+
+        // Ver escala unificada
+        function verEscalaUnificada() {
+            const table = document.getElementById('unifiedTable');
+            table.classList.toggle('hidden');
+            
+            if (!table.classList.contains('hidden')) {
+                // Simular dados unificados
+                const tbody = document.getElementById('unifiedTableBody');
+                const allProfs = [
+                    ...MOCK_DATA.gerentes.marcio.map(p => ({...p, gerente: 'MARCIO'})),
+                    ...MOCK_DATA.gerentes.joao.map(p => ({...p, gerente: 'JOAO'}))
+                ];
+                
+                tbody.innerHTML = allProfs.map((prof, index) => `
+                    <tr>
+                        <td><input type="checkbox" value="${index}"></td>
+                        <td>${prof.nome}</td>
+                        <td>${prof.telefone}</td>
+                        <td>${prof.funcao}</td>
+                        <td>${prof.gerente}</td>
+                    </tr>
+                `).join('');
+                
+                document.getElementById('receivedScales').textContent = '2 escalas recebidas';
+            }
+        }
+
+        // Enviar convocação (teste)
+        async function enviarConvocacao() {
+            try {
+                showToast('Enviando convocação de teste...', 'info');
+                
+                const response = await fetch(`${CONFIG.N8N_WEBHOOK}/enviar-convocacao`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        demanda: {
+                            evento: 'Teste de Convocação',
+                            local: 'Estadio Nilton Santos',
+                            data: new Date().toISOString()
+                        },
+                        profissionais: [{
+                            nome: 'TESTE',
+                            telefone: CONFIG.NUMERO_TESTE,
+                            funcao: 'TESTE',
+                            gerente: 'TESTE'
+                        }]
+                    })
+                });
+                
+                showToast('Convocação de teste enviada!', 'success');
+            } catch (error) {
+                console.error(error);
+                showToast('Erro ao enviar convocação', 'error');
+            }
+        }
+
+        // Enviar escala (gerente)
+        async function enviarEscala() {
+            const checkboxes = document.querySelectorAll('#gerenteTableBody input[type="checkbox"]:checked');
+            
+            if (checkboxes.length === 0) {
+                showToast('Selecione pelo menos um profissional', 'error');
+                return;
+            }
+            
+            try {
+                showToast('Enviando escala...', 'info');
+                
+                const gerente = currentUser.name.toLowerCase();
+                const selected = Array.from(checkboxes).map(cb => 
+                    MOCK_DATA.gerentes[gerente][cb.value]
+                );
+                
+                const response = await fetch(`${CONFIG.N8N_WEBHOOK}/enviar-escala-gerente`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        gerente: currentUser.name,
+                        demandaId: 'TEST001',
+                        profissionais: selected,
+                        timestamp: new Date().toISOString()
+                    })
+                });
+                
+                showToast('Escala enviada com sucesso!', 'success');
+            } catch (error) {
+                console.error(error);
+                showToast('Erro ao enviar escala', 'error');
+            }
+        }
+
+        // Selecionar todos
+        function selecionarTodos() {
+            document.querySelectorAll('#gerenteTableBody input[type="checkbox"]').forEach(cb => {
+                cb.checked = true;
+            });
+        }
+
+        // Toast notification
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type}`;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
