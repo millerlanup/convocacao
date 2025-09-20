@@ -823,36 +823,83 @@
             }
         }
 
-        // Enviar convocação
-        async function enviarConvocacao() {
-            if (selectedProfessionals.size === 0) {
-                showToast('Selecione pelo menos um profissional', 'error');
-                return;
-            }
-            
-            try {
-                showToast('Enviando convocação de teste...', 'info');
-                
-                const response = await fetch(`${CONFIG.N8N_WEBHOOK}/enviar-convocacao`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        demanda: SHARED_DATA.demandaAtual,
-                        profissionais: [{
-                            nome: 'TESTE',
-                            telefone: CONFIG.NUMERO_TESTE,
-                            funcao: 'TESTE',
-                            gerente: 'TESTE'
-                        }]
-                    })
-                });
-                
-                showToast('Convocação enviada!', 'success');
-            } catch (error) {
-                console.error(error);
-                showToast('Erro ao enviar convocação', 'error');
-            }
+        // CORREÇÃO: Função enviarConvocacao
+// Substitua a função enviarConvocacao no seu HTML por esta versão corrigida:
+
+async function enviarConvocacao() {
+    // Verificar se há profissionais selecionados
+    const checkboxes = document.querySelectorAll('#unifiedTableBody input[type="checkbox"]:checked');
+    
+    if (checkboxes.length === 0) {
+        showToast('Selecione pelo menos um profissional na tabela', 'error');
+        return;
+    }
+    
+    if (!SHARED_DATA.demandaAtual) {
+        showToast('Nenhuma demanda ativa', 'error');
+        return;
+    }
+    
+    // Coletar dados dos profissionais selecionados
+    const profissionaisSelecionados = [];
+    checkboxes.forEach(cb => {
+        const index = parseInt(cb.value);
+        const row = SHARED_DATA.dadosUnificados[index];
+        if (row) {
+            profissionaisSelecionados.push({
+                nome: row[0],      // Nome
+                telefone: row[1],  // Telefone
+                funcao: row[2],    // Função
+                gerente: row[3]    // Gerente
+            });
         }
+    });
+    
+    if (profissionaisSelecionados.length === 0) {
+        showToast('Erro ao coletar dados dos profissionais', 'error');
+        return;
+    }
+    
+    // Confirmar envio
+    const confirmMessage = `Enviar convocação para ${profissionaisSelecionados.length} profissional(is)?`;
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    try {
+        showToast(`Enviando convocação para ${profissionaisSelecionados.length} profissional(is)...`, 'info');
+        
+        // Enviar para o n8n
+        const response = await fetch(`${CONFIG.N8N_WEBHOOK}/enviar-convocacao`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                demanda: {
+                    evento: SHARED_DATA.demandaAtual.evento,
+                    local: SHARED_DATA.demandaAtual.local,
+                    dataEvento: SHARED_DATA.demandaAtual.dataEvento,
+                    dataLimite: SHARED_DATA.demandaAtual.dataLimite
+                },
+                profissionais: profissionaisSelecionados,
+                timestamp: new Date().toISOString()
+            })
+        });
+        
+        if (response.ok) {
+            showToast(`Convocação enviada para ${profissionaisSelecionados.length} profissional(is)!`, 'success');
+            
+            // Desmarcar checkboxes após envio
+            checkboxes.forEach(cb => cb.checked = false);
+            document.getElementById('selectAll').checked = false;
+            selectedProfessionals.clear();
+        } else {
+            throw new Error('Erro na resposta do servidor');
+        }
+    } catch (error) {
+        console.error('Erro ao enviar convocação:', error);
+        showToast('Erro ao enviar convocação. Verifique o n8n.', 'error');
+    }
+}
 
         // Encerrar demanda
         async function encerrarDemanda() {
