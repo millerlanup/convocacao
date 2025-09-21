@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Escalas - FLAP (v5 Produção)</title>
+    <title>Sistema de Escalas - FLAP (v6 Corrigido)</title>
     <style>
         * {
             margin: 0;
@@ -109,6 +109,11 @@
             cursor: pointer;
             transition: all 0.3s;
             width: 100%;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         .btn-primary {
@@ -232,6 +237,8 @@
             border-radius: 12px;
             max-width: 600px;
             width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
         }
 
         .modal-header {
@@ -306,6 +313,11 @@
             background: #17a2b8;
         }
 
+        .toast.warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
         .loading {
             color: #6c757d;
             font-style: italic;
@@ -329,11 +341,34 @@
             background: #ffc107;
             color: #212529;
         }
+
+        .badge.danger {
+            background: #dc3545;
+        }
+
+        .badge.inactive {
+            background: #6c757d;
+        }
+
+        /* Indicador de processamento */
+        .processing-indicator {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .processing-indicator.show {
+            display: block;
+        }
     </style>
 </head>
 <body>
     <div class="production-mode">
-        ✅ SISTEMA EM PRODUÇÃO - v5
+        ✅ SISTEMA EM PRODUÇÃO - v6 CORRIGIDO
     </div>
 
     <!-- Login Screen -->
@@ -354,6 +389,11 @@
                 <span class="user-badge" id="userBadge"></span>
                 <button class="btn-logout" onclick="logout()">Sair</button>
             </div>
+        </div>
+
+        <!-- Processing Indicator -->
+        <div id="processingIndicator" class="processing-indicator">
+            <strong>⏳ Processando...</strong> <span id="processingMessage"></span>
         </div>
 
         <!-- RH Dashboard -->
@@ -387,7 +427,7 @@
                 <button class="btn btn-info" onclick="atualizarDados()">🔄 Atualizar Dados</button>
                 <button class="btn btn-warning" onclick="enviarConvocacao()">Enviar Convocação</button>
                 <button class="btn btn-warning" onclick="notificarGerentes()">Notificar Gerentes</button>
-                <button class="btn btn-danger" onclick="encerrarDemanda()">Encerrar Demanda</button>
+                <button class="btn btn-danger" onclick="encerrarDemandaCorrigido()">Encerrar Demanda</button>
             </div>
 
             <div id="unifiedTable" class="table-container hidden">
@@ -400,12 +440,14 @@
                             <th>Função</th>
                             <th>Gerente</th>
                             <th>Status RH</th>
+                            <th>Data Convocação</th>
                             <th>Resposta</th>
+                            <th>Data Resposta</th>
                         </tr>
                     </thead>
                     <tbody id="unifiedTableBody">
                         <tr>
-                            <td colspan="7" style="text-align: center;">
+                            <td colspan="9" style="text-align: center;">
                                 <span class="loading">Carregando dados...</span>
                             </td>
                         </tr>
@@ -425,10 +467,17 @@
                 </div>
             </div>
 
+            <div id="gerenteScaleStatus" class="card hidden">
+                <div class="card-title">Status da Escala</div>
+                <div id="gerenteScaleInfo">
+                    <span style="color: green;">✅ Escala já enviada para esta demanda</span>
+                </div>
+            </div>
+
             <div class="action-buttons">
                 <button class="btn btn-primary" onclick="selecionarTodos()">Selecionar Todos</button>
                 <button class="btn btn-primary" onclick="desselecionarTodos()">Desselecionar Todos</button>
-                <button class="btn btn-success" onclick="enviarEscala()">Enviar Escala</button>
+                <button id="btnEnviarEscala" class="btn btn-success" onclick="enviarEscala()">Enviar Escala</button>
                 <button class="btn btn-warning" onclick="recarregarDemanda()">Recarregar Demanda</button>
             </div>
 
@@ -494,13 +543,15 @@
             N8N_WEBHOOK: 'https://n8n.hublanup.com.br/webhook',
             N8N_WEBHOOK_CONVOCACAO: 'https://n8n.hublanup.com.br/webhook/convocacao-sheets-seven7-empresa',
             NUMERO_TESTE: '5511953909792',
-            TEMPLATE_ID: '68cc74d8ae6ca49eaf1c334e'
+            TEMPLATE_ID: '68cc74d8ae6ca49eaf1c334e',
+            DRIVE_FOLDER_ID: '16nTdbqpgUgxXjR8A1CUlyPNMpyF6gs3O'
         };
 
         // Dados compartilhados
         const SHARED_DATA = {
             demandaAtual: null,
             dadosUnificados: [],
+            escalasEnviadas: {},
             gerentes: {
                 marcio: [
                     { nome: 'CARLOS SILVA', telefone: '11953909792', funcao: 'SEGURANÇA', status: 'ATIVO' },
@@ -521,7 +572,7 @@
         // Setup inicial
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('createDemandForm').addEventListener('submit', handleCreateDemand);
-            console.log('Sistema de Escalas FLAP v5 - Modo Produção');
+            console.log('Sistema de Escalas FLAP v6 - Modo Produção Corrigido');
         });
 
         // Login
@@ -534,7 +585,7 @@
                 document.getElementById('rhDashboard').classList.remove('hidden');
                 loadRHDashboard();
             } else {
-                currentUser = { type: 'gerente', name: type.toUpperCase() };
+                currentUser = { type: 'gerente', name: type.toUpperCase(), id: type };
                 document.getElementById('gerenteDashboard').classList.remove('hidden');
                 document.getElementById('gerenteName').textContent = currentUser.name;
                 loadGerenteData(type);
@@ -546,6 +597,18 @@
 
         function logout() {
             location.reload();
+        }
+
+        // Indicador de processamento
+        function showProcessing(message) {
+            const indicator = document.getElementById('processingIndicator');
+            const msgElement = document.getElementById('processingMessage');
+            msgElement.textContent = message;
+            indicator.classList.add('show');
+        }
+
+        function hideProcessing() {
+            document.getElementById('processingIndicator').classList.remove('show');
         }
 
         // Função para carregar demanda ativa
@@ -568,7 +631,8 @@
                                 dataEvento: row[2] || '',
                                 dataLimite: row[3] || '',
                                 dataCriacao: row[4] || '',
-                                status: row[5] || ''
+                                status: row[5] || '',
+                                rowIndex: i
                             };
                             console.log('Demanda ativa encontrada:', SHARED_DATA.demandaAtual);
                             return true;
@@ -596,8 +660,14 @@
                 if (data.values && data.values.length > 1) {
                     SHARED_DATA.dadosUnificados = data.values.slice(1);
                     
-                    // Contar gerentes únicos
+                    // Contar gerentes únicos e escalas
                     const gerentesUnicos = [...new Set(SHARED_DATA.dadosUnificados.map(r => r[3]).filter(g => g))];
+                    
+                    // Verificar escalas enviadas por cada gerente
+                    SHARED_DATA.escalasEnviadas = {};
+                    gerentesUnicos.forEach(gerente => {
+                        SHARED_DATA.escalasEnviadas[gerente.toLowerCase()] = true;
+                    });
                     
                     // Atualizar contadores
                     document.getElementById('receivedScales').innerHTML = 
@@ -639,12 +709,13 @@
 
         function updateDemandDisplay() {
             if (SHARED_DATA.demandaAtual) {
+                const statusClass = SHARED_DATA.demandaAtual.status === 'ATIVO' ? 'success' : 'inactive';
                 const demandaHtml = `
                     <strong>${SHARED_DATA.demandaAtual.evento}</strong><br>
                     Local: ${SHARED_DATA.demandaAtual.local}<br>
                     Data Evento: ${SHARED_DATA.demandaAtual.dataEvento}<br>
                     Data Limite: ${SHARED_DATA.demandaAtual.dataLimite}<br>
-                    Status: <span style="color: green;">${SHARED_DATA.demandaAtual.status}</span>
+                    Status: <span class="badge ${statusClass}">${SHARED_DATA.demandaAtual.status}</span>
                 `;
                 
                 // Atualizar display do RH
@@ -655,6 +726,20 @@
                 // Atualizar display do gerente
                 if (document.getElementById('gerenteDemandInfo')) {
                     document.getElementById('gerenteDemandInfo').innerHTML = demandaHtml;
+                    
+                    // Verificar se o gerente já enviou escala
+                    if (currentUser && currentUser.type === 'gerente') {
+                        const jaEnviou = SHARED_DATA.escalasEnviadas[currentUser.id];
+                        if (jaEnviou) {
+                            document.getElementById('gerenteScaleStatus').classList.remove('hidden');
+                            document.getElementById('btnEnviarEscala').disabled = true;
+                            document.getElementById('btnEnviarEscala').textContent = 'Escala Já Enviada';
+                        } else {
+                            document.getElementById('gerenteScaleStatus').classList.add('hidden');
+                            document.getElementById('btnEnviarEscala').disabled = false;
+                            document.getElementById('btnEnviarEscala').textContent = 'Enviar Escala';
+                        }
+                    }
                 }
             }
         }
@@ -685,23 +770,27 @@
             const tbody = document.getElementById('unifiedTableBody');
             
             if (SHARED_DATA.dadosUnificados.length > 0) {
-                tbody.innerHTML = SHARED_DATA.dadosUnificados.map((row, index) => `
-                    <tr>
-                        <td><input type="checkbox" value="${index}" onchange="toggleSelection(${index})"></td>
-                        <td>${row[0] || ''}</td>
-                        <td>${row[1] || ''}</td>
-                        <td>${row[2] || ''}</td>
-                        <td>${row[3] || ''}</td>
-                        <td>
-                            <span class="badge ${row[5] === 'APROVADO' ? 'success' : 'warning'}">
-                                ${row[5] || 'PENDENTE'}
-                            </span>
-                        </td>
-                        <td>${row[8] || '-'}</td>
-                    </tr>
-                `).join('');
+                tbody.innerHTML = SHARED_DATA.dadosUnificados.map((row, index) => {
+                    const statusClass = row[5] === 'APROVADO' ? 'success' : 'warning';
+                    const resposta = row[8] || '-';
+                    const respostaClass = resposta === 'ACEITO' ? 'success' : resposta === 'RECUSO' ? 'danger' : '';
+                    
+                    return `
+                        <tr>
+                            <td><input type="checkbox" value="${index}" onchange="toggleSelection(${index})"></td>
+                            <td>${row[0] || ''}</td>
+                            <td>${row[1] || ''}</td>
+                            <td>${row[2] || ''}</td>
+                            <td>${row[3] || ''}</td>
+                            <td><span class="badge ${statusClass}">${row[5] || 'PENDENTE'}</span></td>
+                            <td>${row[9] || '-'}</td>
+                            <td>${resposta !== '-' ? `<span class="badge ${respostaClass}">${resposta}</span>` : '-'}</td>
+                            <td>${row[10] || '-'}</td>
+                        </tr>
+                    `;
+                }).join('');
             } else {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Nenhuma escala recebida ainda</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">Nenhuma escala recebida ainda</td></tr>';
             }
         }
 
@@ -715,15 +804,22 @@
             const formData = {
                 local: document.getElementById('local').value,
                 evento: document.getElementById('evento').value,
-                dataEvento: document.getElementById('dataEvento').value, // Agora apenas data
+                dataEvento: document.getElementById('dataEvento').value,
                 dataLimite: document.getElementById('dataLimite').value,
                 dataCriacao: new Date().toISOString(),
                 status: 'ATIVO'
             };
             
             try {
-                showToast('Criando demanda...', 'info');
+                showProcessing('Criando nova demanda e inativando anterior...');
                 
+                // 1. Inativar demanda anterior se existir
+                if (SHARED_DATA.demandaAtual) {
+                    await inativarDemandaAnterior();
+                    await consolidarDadosAnteriores();
+                }
+                
+                // 2. Criar nova demanda
                 const response = await fetch(`${CONFIG.N8N_WEBHOOK}/criar-demanda`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -731,19 +827,90 @@
                 });
                 
                 if (response.ok) {
+                    // 3. Limpar dados unificados
+                    await limparDadosUnificados();
+                    
+                    // 4. Criar sheet de credenciamento
+                    await criarSheetCredenciamento(formData.evento);
+                    
                     showToast('Demanda criada com sucesso!', 'success');
                     closeModal('createDemandModal');
                     SHARED_DATA.demandaAtual = formData;
+                    SHARED_DATA.dadosUnificados = [];
+                    SHARED_DATA.escalasEnviadas = {};
                     updateDemandDisplay();
                     document.getElementById('createDemandForm').reset();
+                } else {
+                    throw new Error('Erro ao criar demanda');
                 }
             } catch (error) {
                 console.error(error);
-                showToast('Erro ao criar demanda (verifique o n8n)', 'error');
-                // Salvar localmente mesmo com erro
-                SHARED_DATA.demandaAtual = formData;
-                updateDemandDisplay();
-                closeModal('createDemandModal');
+                showToast('Erro ao criar demanda', 'error');
+            } finally {
+                hideProcessing();
+            }
+        }
+
+        async function inativarDemandaAnterior() {
+            try {
+                await fetch(`${CONFIG.N8N_WEBHOOK}/inativar-demanda`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        demandaId: SHARED_DATA.demandaAtual.evento,
+                        timestamp: new Date().toISOString()
+                    })
+                });
+            } catch (error) {
+                console.error('Erro ao inativar demanda anterior:', error);
+            }
+        }
+
+        async function consolidarDadosAnteriores() {
+            if (SHARED_DATA.dadosUnificados.length === 0) return;
+            
+            try {
+                await fetch(`${CONFIG.N8N_WEBHOOK}/consolidar-dados`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        demandaId: SHARED_DATA.demandaAtual.evento,
+                        dados: SHARED_DATA.dadosUnificados,
+                        timestamp: new Date().toISOString()
+                    })
+                });
+            } catch (error) {
+                console.error('Erro ao consolidar dados:', error);
+            }
+        }
+
+        async function limparDadosUnificados() {
+            try {
+                await fetch(`${CONFIG.N8N_WEBHOOK}/limpar-dados-unificados`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        timestamp: new Date().toISOString()
+                    })
+                });
+            } catch (error) {
+                console.error('Erro ao limpar dados unificados:', error);
+            }
+        }
+
+        async function criarSheetCredenciamento(evento) {
+            try {
+                await fetch(`${CONFIG.N8N_WEBHOOK}/criar-credenciamento`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        evento: evento,
+                        driveFolder: CONFIG.DRIVE_FOLDER_ID,
+                        timestamp: new Date().toISOString()
+                    })
+                });
+            } catch (error) {
+                console.error('Erro ao criar sheet de credenciamento:', error);
             }
         }
 
@@ -751,52 +918,60 @@
             document.getElementById(modalId).classList.remove('show');
         }
 
-        // Gerente Functions
-        async function loadGerenteData(gerente) {
-            document.getElementById('gerenteDemandInfo').innerHTML = '<span class="loading">Carregando demanda...</span>';
-            
-            // Carregar demanda ativa
-            const hasDemanda = await loadDemandaAtiva();
-            
-            if (hasDemanda && SHARED_DATA.demandaAtual) {
-                updateDemandDisplay();
-            } else {
-                document.getElementById('gerenteDemandInfo').innerHTML = 
-                    '<span style="color: #6c757d;">Nenhuma demanda ativa</span>';
+        // Função CORRIGIDA: Encerrar Demanda
+        async function encerrarDemandaCorrigido() {
+            if (!SHARED_DATA.demandaAtual) {
+                showToast('Nenhuma demanda ativa', 'error');
+                return;
             }
             
-            // Carregar profissionais do gerente
-            const tbody = document.getElementById('gerenteTableBody');
-            const data = SHARED_DATA.gerentes[gerente] || [];
+            if (!confirm('Deseja realmente encerrar a demanda? Os dados serão consolidados e a demanda ficará inativa.')) {
+                return;
+            }
             
-            tbody.innerHTML = data.map((prof, index) => `
-                <tr>
-                    <td><input type="checkbox" value="${index}"></td>
-                    <td>${prof.nome}</td>
-                    <td>${prof.telefone}</td>
-                    <td>${prof.funcao}</td>
-                    <td>${prof.status}</td>
-                </tr>
-            `).join('');
-        }
-
-        async function recarregarDemanda() {
-            showToast('Recarregando demanda...', 'info');
-            document.getElementById('gerenteDemandInfo').innerHTML = '<span class="loading">Carregando...</span>';
-            
-            const hasDemanda = await loadDemandaAtiva();
-            
-            if (hasDemanda && SHARED_DATA.demandaAtual) {
-                updateDemandDisplay();
-                showToast('Demanda atualizada!', 'success');
-            } else {
-                document.getElementById('gerenteDemandInfo').innerHTML = 
-                    '<span style="color: #6c757d;">Nenhuma demanda ativa</span>';
-                showToast('Nenhuma demanda encontrada', 'info');
+            try {
+                showProcessing('Encerrando demanda e consolidando dados...');
+                
+                // 1. Consolidar dados se existirem
+                if (SHARED_DATA.dadosUnificados.length > 0) {
+                    await consolidarDadosAnteriores();
+                    
+                    // Criar sheet de credenciamento final
+                    await criarSheetCredenciamento(SHARED_DATA.demandaAtual.evento);
+                }
+                
+                // 2. Inativar demanda
+                await inativarDemandaAnterior();
+                
+                // 3. Limpar dados unificados
+                await limparDadosUnificados();
+                
+                showToast('Demanda encerrada com sucesso!', 'success');
+                
+                // Limpar dados locais
+                SHARED_DATA.demandaAtual = null;
+                SHARED_DATA.dadosUnificados = [];
+                SHARED_DATA.escalasEnviadas = {};
+                
+                // Atualizar interface
+                document.getElementById('currentDemand').innerHTML = 'Nenhuma demanda ativa';
+                document.getElementById('receivedScales').innerHTML = '<strong>0</strong> escalas recebidas';
+                document.getElementById('totalSelected').innerHTML = '<strong>0</strong> profissionais';
+                
+                // Se a tabela estiver aberta, limpar
+                const tbody = document.getElementById('unifiedTableBody');
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">Nenhuma escala disponível</td></tr>';
+                }
+            } catch (error) {
+                console.error('Erro ao encerrar demanda:', error);
+                showToast('Erro ao encerrar demanda', 'error');
+            } finally {
+                hideProcessing();
             }
         }
 
-        // FUNÇÃO ATUALIZADA: Enviar Convocação
+        // FUNÇÃO ATUALIZADA: Enviar Convocação com registro de DATA_CONVOCACAO
         async function enviarConvocacao() {
             // Verificar se há profissionais selecionados
             const checkboxes = document.querySelectorAll('#unifiedTableBody input[type="checkbox"]:checked');
@@ -821,17 +996,18 @@
                 const row = SHARED_DATA.dadosUnificados[index];
                 if (row) {
                     profissionaisSelecionados.push({
-                        nome: row[0],      // Nome
-                        telefone: row[1],  // Telefone
-                        funcao: row[2],    // Função
-                        gerente: row[3]    // Gerente
+                        nome: row[0],
+                        telefone: row[1],
+                        funcao: row[2],
+                        gerente: row[3],
+                        rowIndex: index + 2 // +2 porque a primeira linha é o cabeçalho
                     });
                 }
             });
             
             // CONFIGURAÇÃO
-            const EMPRESA = 'FLAP';  // Empresa fixa
-            const MODO_TESTE = false; // MODO PRODUÇÃO ATIVADO!
+            const EMPRESA = 'FLAP';
+            const MODO_TESTE = false;
             
             if (MODO_TESTE) {
                 console.log('⚠️ MODO TESTE ATIVADO');
@@ -849,28 +1025,33 @@
             }
             
             try {
-                showToast('Enviando convocação...', 'info');
+                showProcessing(`Enviando convocação para ${profissionaisSelecionados.length} profissional(is)...`);
                 
-                // Preparar payload
+                const dataConvocacao = new Date().toISOString();
+                
+                // Preparar payload com DATA_CONVOCACAO
                 const payload = {
                     demanda: {
                         empresa: EMPRESA,
                         evento: SHARED_DATA.demandaAtual.evento,
                         local: SHARED_DATA.demandaAtual.local,
-                        data: SHARED_DATA.demandaAtual.dataEvento // Só data, sem hora
+                        data: SHARED_DATA.demandaAtual.dataEvento
                     },
                     profissionais: profissionaisSelecionados.map(prof => ({
                         nome: prof.nome,
                         telefone: prof.telefone.toString().replace(/\D/g, ''),
                         funcao: prof.funcao,
-                        gerente: prof.gerente
+                        gerente: prof.gerente,
+                        dataConvocacao: dataConvocacao,
+                        rowIndex: prof.rowIndex
                     })),
                     lote: 1,
                     total_lotes: 1,
-                    sistema: 'seven7chat'
+                    sistema: 'seven7chat',
+                    registrarDataConvocacao: true
                 };
                 
-                console.log('📤 Enviando convocação:', payload);
+                console.log('📤 Enviando convocação com registro de data:', payload);
                 
                 const response = await fetch(CONFIG.N8N_WEBHOOK_CONVOCACAO, {
                     method: 'POST',
@@ -885,8 +1066,12 @@
                 console.log('📥 Resposta:', result);
                 
                 if (response.ok && result.sucesso !== false) {
-                    // Atualizar data_convocacao na planilha
-                    await atualizarDataConvocacao(indicesSelecionados);
+                    // Atualizar localmente a data de convocação
+                    indicesSelecionados.forEach(index => {
+                        if (SHARED_DATA.dadosUnificados[index]) {
+                            SHARED_DATA.dadosUnificados[index][9] = dataConvocacao;
+                        }
+                    });
                     
                     showToast(`✅ Convocação enviada para ${profissionaisSelecionados.length} profissional(is)!`, 'success');
                     
@@ -895,7 +1080,10 @@
                     document.getElementById('selectAll').checked = false;
                     selectedProfessionals.clear();
                     
-                    // Recarregar dados
+                    // Atualizar tabela
+                    atualizarTabelaUnificada();
+                    
+                    // Recarregar dados em 2 segundos
                     setTimeout(() => {
                         carregarDadosUnificados();
                     }, 2000);
@@ -905,27 +1093,118 @@
             } catch (error) {
                 console.error('❌ Erro:', error);
                 showToast(`Erro: ${error.message}`, 'error');
+            } finally {
+                hideProcessing();
             }
         }
 
-        // Atualizar data_convocacao na planilha
-        async function atualizarDataConvocacao(indices) {
-            try {
-                const dataConvocacao = new Date().toISOString();
+        // Gerente Functions
+        async function loadGerenteData(gerente) {
+            document.getElementById('gerenteDemandInfo').innerHTML = '<span class="loading">Carregando demanda...</span>';
+            
+            // Carregar demanda ativa
+            const hasDemanda = await loadDemandaAtiva();
+            
+            // Carregar dados unificados para verificar se já enviou
+            await carregarDadosUnificados();
+            
+            if (hasDemanda && SHARED_DATA.demandaAtual) {
+                updateDemandDisplay();
                 
-                // Para cada profissional selecionado, atualizar a data_convocacao
-                for (const index of indices) {
-                    const row = SHARED_DATA.dadosUnificados[index];
-                    if (row) {
-                        // Aqui você precisaria implementar a atualização via n8n
-                        // Por enquanto, só atualizamos localmente
-                        row[9] = dataConvocacao; // Coluna J = data_convocacao
-                    }
+                // Se demanda está inativa, desabilitar envio
+                if (SHARED_DATA.demandaAtual.status !== 'ATIVO') {
+                    document.getElementById('btnEnviarEscala').disabled = true;
+                    document.getElementById('btnEnviarEscala').textContent = 'Demanda Encerrada';
+                    showToast('Demanda está encerrada', 'warning');
                 }
+            } else {
+                document.getElementById('gerenteDemandInfo').innerHTML = 
+                    '<span style="color: #6c757d;">Nenhuma demanda ativa</span>';
+                document.getElementById('btnEnviarEscala').disabled = true;
+            }
+            
+            // Carregar profissionais do gerente
+            const tbody = document.getElementById('gerenteTableBody');
+            const data = SHARED_DATA.gerentes[gerente] || [];
+            
+            tbody.innerHTML = data.map((prof, index) => `
+                <tr>
+                    <td><input type="checkbox" value="${index}"></td>
+                    <td>${prof.nome}</td>
+                    <td>${prof.telefone}</td>
+                    <td>${prof.funcao}</td>
+                    <td>${prof.status}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function recarregarDemanda() {
+            showToast('Recarregando demanda...', 'info');
+            document.getElementById('gerenteDemandInfo').innerHTML = '<span class="loading">Carregando...</span>';
+            
+            const hasDemanda = await loadDemandaAtiva();
+            await carregarDadosUnificados();
+            
+            if (hasDemanda && SHARED_DATA.demandaAtual) {
+                updateDemandDisplay();
+                showToast('Demanda atualizada!', 'success');
+            } else {
+                document.getElementById('gerenteDemandInfo').innerHTML = 
+                    '<span style="color: #6c757d;">Nenhuma demanda ativa</span>';
+                showToast('Nenhuma demanda encontrada', 'info');
+            }
+        }
+
+        // Enviar escala (gerente)
+        async function enviarEscala() {
+            const checkboxes = document.querySelectorAll('#gerenteTableBody input[type="checkbox"]:checked');
+            
+            if (checkboxes.length === 0) {
+                showToast('Selecione pelo menos um profissional', 'error');
+                return;
+            }
+            
+            if (!SHARED_DATA.demandaAtual || SHARED_DATA.demandaAtual.status !== 'ATIVO') {
+                showToast('Nenhuma demanda ativa', 'error');
+                return;
+            }
+            
+            // Verificar se já enviou
+            if (SHARED_DATA.escalasEnviadas[currentUser.id]) {
+                showToast('Você já enviou uma escala para esta demanda', 'warning');
+                return;
+            }
+            
+            try {
+                showToast('Enviando escala...', 'info');
                 
-                console.log('Data de convocação atualizada para:', dataConvocacao);
+                const gerente = currentUser.name.toLowerCase();
+                const selected = Array.from(checkboxes).map(cb => 
+                    SHARED_DATA.gerentes[gerente][cb.value]
+                );
+                
+                const response = await fetch(`${CONFIG.N8N_WEBHOOK}/enviar-escala-gerente`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        gerente: currentUser.name,
+                        demandaId: SHARED_DATA.demandaAtual.evento,
+                        profissionais: selected,
+                        timestamp: new Date().toISOString()
+                    })
+                });
+                
+                if (response.ok) {
+                    SHARED_DATA.escalasEnviadas[currentUser.id] = true;
+                    showToast('Escala enviada com sucesso!', 'success');
+                    updateDemandDisplay();
+                    desselecionarTodos();
+                } else {
+                    throw new Error('Erro ao enviar escala');
+                }
             } catch (error) {
-                console.error('Erro ao atualizar data_convocacao:', error);
+                console.error(error);
+                showToast('Erro ao enviar escala', 'error');
             }
         }
 
@@ -954,114 +1233,6 @@
             } catch (error) {
                 console.error(error);
                 showToast('Erro ao notificar', 'error');
-            }
-        }
-
-        // FUNÇÃO CORRIGIDA: Encerrar demanda
-        async function encerrarDemanda() {
-            if (!SHARED_DATA.demandaAtual) {
-                showToast('Nenhuma demanda ativa', 'error');
-                return;
-            }
-            
-            if (!confirm('Deseja realmente encerrar a demanda? Os dados serão consolidados.')) {
-                return;
-            }
-            
-            try {
-                showToast('Encerrando demanda...', 'info');
-                
-                // 1. Copiar dados_unificados para dados_unificados_consolidado
-                if (SHARED_DATA.dadosUnificados.length > 0) {
-                    const response = await fetch(`${CONFIG.N8N_WEBHOOK}/consolidar-demanda`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            demandaId: SHARED_DATA.demandaAtual.evento,
-                            dados: SHARED_DATA.dadosUnificados,
-                            timestamp: new Date().toISOString()
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        console.error('Erro ao consolidar dados');
-                    }
-                }
-                
-                // 2. Marcar demanda como ENCERRADA na planilha eventos_criados
-                const encerrarResponse = await fetch(`${CONFIG.N8N_WEBHOOK}/encerrar-demanda`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        demandaId: SHARED_DATA.demandaAtual.evento,
-                        timestamp: new Date().toISOString()
-                    })
-                });
-                
-                if (encerrarResponse.ok) {
-                    showToast('Demanda encerrada com sucesso!', 'success');
-                    
-                    // Limpar dados locais
-                    SHARED_DATA.demandaAtual = null;
-                    SHARED_DATA.dadosUnificados = [];
-                    
-                    // Atualizar interface
-                    document.getElementById('currentDemand').innerHTML = 'Nenhuma demanda ativa';
-                    document.getElementById('receivedScales').innerHTML = '<strong>0</strong> escalas recebidas';
-                    document.getElementById('totalSelected').innerHTML = '<strong>0</strong> profissionais';
-                    
-                    // Se a tabela estiver aberta, limpar
-                    const tbody = document.getElementById('unifiedTableBody');
-                    if (tbody) {
-                        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Nenhuma escala disponível</td></tr>';
-                    }
-                } else {
-                    throw new Error('Erro ao encerrar demanda no servidor');
-                }
-            } catch (error) {
-                console.error('Erro ao encerrar demanda:', error);
-                showToast(`Erro ao encerrar demanda: ${error.message}`, 'error');
-            }
-        }
-
-        // Enviar escala (gerente)
-        async function enviarEscala() {
-            const checkboxes = document.querySelectorAll('#gerenteTableBody input[type="checkbox"]:checked');
-            
-            if (checkboxes.length === 0) {
-                showToast('Selecione pelo menos um profissional', 'error');
-                return;
-            }
-            
-            if (!SHARED_DATA.demandaAtual) {
-                showToast('Nenhuma demanda ativa', 'error');
-                return;
-            }
-            
-            try {
-                showToast('Enviando escala...', 'info');
-                
-                const gerente = currentUser.name.toLowerCase();
-                const selected = Array.from(checkboxes).map(cb => 
-                    SHARED_DATA.gerentes[gerente][cb.value]
-                );
-                
-                const response = await fetch(`${CONFIG.N8N_WEBHOOK}/enviar-escala-gerente`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        gerente: currentUser.name,
-                        demandaId: SHARED_DATA.demandaAtual.evento,
-                        profissionais: selected,
-                        timestamp: new Date().toISOString()
-                    })
-                });
-                
-                showToast('Escala enviada com sucesso!', 'success');
-                desselecionarTodos();
-            } catch (error) {
-                console.error(error);
-                showToast('Erro ao enviar escala', 'error');
             }
         }
 
@@ -1120,6 +1291,29 @@
                 toast.classList.remove('show');
             }, 5000);
         }
+
+        // Listener para respostas do template (ACEITO/RECUSO)
+        window.addEventListener('message', async function(event) {
+            if (event.data && event.data.type === 'template_response') {
+                const { telefone, resposta } = event.data;
+                
+                try {
+                    await fetch(`${CONFIG.N8N_WEBHOOK}/resposta-template`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            telefone: telefone,
+                            resposta: resposta,
+                            timestamp: new Date().toISOString()
+                        })
+                    });
+                    
+                    console.log(`Resposta registrada: ${telefone} - ${resposta}`);
+                } catch (error) {
+                    console.error('Erro ao registrar resposta:', error);
+                }
+            }
+        });
     </script>
 </body>
 </html>
