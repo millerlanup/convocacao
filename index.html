@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Escalas - FLAP (v4 Final)</title>
+    <title>Sistema de Escalas - FLAP (v5 Produção)</title>
     <style>
         * {
             margin: 0;
@@ -41,9 +41,9 @@
             margin-bottom: 5px;
         }
 
-        .test-mode {
-            background: #ffc107;
-            color: #000;
+        .production-mode {
+            background: #28a745;
+            color: white;
             padding: 10px;
             text-align: center;
             font-weight: bold;
@@ -332,8 +332,8 @@
     </style>
 </head>
 <body>
-    <div class="test-mode">
-        ⚠️ MODO DE TESTE - Sistema em Configuração (v4 Final)
+    <div class="production-mode">
+        ✅ SISTEMA EM PRODUÇÃO - v5
     </div>
 
     <!-- Login Screen -->
@@ -385,8 +385,8 @@
                 <button class="btn btn-success" onclick="openCreateDemand()">Criar Nova Demanda</button>
                 <button class="btn btn-primary" onclick="verEscalaUnificada()">Ver Escala Unificada</button>
                 <button class="btn btn-info" onclick="atualizarDados()">🔄 Atualizar Dados</button>
-                <button class="btn btn-warning" onclick="enviarConvocacao()">Enviar Convocação (Teste)</button>
-                <button class="btn btn-warning" onclick="notificarGerentes()">Notificar Gerentes (Teste)</button>
+                <button class="btn btn-warning" onclick="enviarConvocacao()">Enviar Convocação</button>
+                <button class="btn btn-warning" onclick="notificarGerentes()">Notificar Gerentes</button>
                 <button class="btn btn-danger" onclick="encerrarDemanda()">Encerrar Demanda</button>
             </div>
 
@@ -468,7 +468,7 @@
                 </div>
                 <div class="form-group">
                     <label for="dataEvento">Data do Evento:</label>
-                    <input type="datetime-local" id="dataEvento" required>
+                    <input type="date" id="dataEvento" required>
                 </div>
                 <div class="form-group">
                     <label for="dataLimite">Data Limite para Escala:</label>
@@ -492,6 +492,7 @@
             MARCIO_SHEET_ID: '1SvKZBZ3FdZRFk5iXxg26WFqMgMiyqMAmQt2VzCY31iY',
             JOAO_SHEET_ID: '1qxd-74E1VOJccO7FDOy18TX6VznvNTfHb7sSOcMTUI4',
             N8N_WEBHOOK: 'https://n8n.hublanup.com.br/webhook',
+            N8N_WEBHOOK_CONVOCACAO: 'https://n8n.hublanup.com.br/webhook/convocacao-sheets-seven7-empresa',
             NUMERO_TESTE: '5511953909792',
             TEMPLATE_ID: '68cc74d8ae6ca49eaf1c334e'
         };
@@ -520,7 +521,7 @@
         // Setup inicial
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('createDemandForm').addEventListener('submit', handleCreateDemand);
-            console.log('Sistema de Escalas FLAP v4 Final - Carregado');
+            console.log('Sistema de Escalas FLAP v5 - Modo Produção');
         });
 
         // Login
@@ -714,7 +715,7 @@
             const formData = {
                 local: document.getElementById('local').value,
                 evento: document.getElementById('evento').value,
-                dataEvento: document.getElementById('dataEvento').value,
+                dataEvento: document.getElementById('dataEvento').value, // Agora apenas data
                 dataLimite: document.getElementById('dataLimite').value,
                 dataCriacao: new Date().toISOString(),
                 status: 'ATIVO'
@@ -795,6 +796,139 @@
             }
         }
 
+        // FUNÇÃO ATUALIZADA: Enviar Convocação
+        async function enviarConvocacao() {
+            // Verificar se há profissionais selecionados
+            const checkboxes = document.querySelectorAll('#unifiedTableBody input[type="checkbox"]:checked');
+            
+            if (checkboxes.length === 0) {
+                showToast('Selecione pelo menos um profissional na tabela', 'error');
+                return;
+            }
+            
+            if (!SHARED_DATA.demandaAtual) {
+                showToast('Nenhuma demanda ativa', 'error');
+                return;
+            }
+            
+            // Coletar dados dos profissionais selecionados
+            const profissionaisSelecionados = [];
+            const indicesSelecionados = [];
+            
+            checkboxes.forEach(cb => {
+                const index = parseInt(cb.value);
+                indicesSelecionados.push(index);
+                const row = SHARED_DATA.dadosUnificados[index];
+                if (row) {
+                    profissionaisSelecionados.push({
+                        nome: row[0],      // Nome
+                        telefone: row[1],  // Telefone
+                        funcao: row[2],    // Função
+                        gerente: row[3]    // Gerente
+                    });
+                }
+            });
+            
+            // CONFIGURAÇÃO
+            const EMPRESA = 'FLAP';  // Empresa fixa
+            const MODO_TESTE = false; // MODO PRODUÇÃO ATIVADO!
+            
+            if (MODO_TESTE) {
+                console.log('⚠️ MODO TESTE ATIVADO');
+                profissionaisSelecionados.length = 1;
+                profissionaisSelecionados[0].telefone = CONFIG.NUMERO_TESTE;
+            }
+            
+            // Confirmar envio
+            const mensagemConfirmacao = MODO_TESTE ? 
+                `⚠️ MODO TESTE: Enviar para ${CONFIG.NUMERO_TESTE}?` :
+                `Enviar convocação para ${profissionaisSelecionados.length} profissional(is)?`;
+                
+            if (!confirm(mensagemConfirmacao)) {
+                return;
+            }
+            
+            try {
+                showToast('Enviando convocação...', 'info');
+                
+                // Preparar payload
+                const payload = {
+                    demanda: {
+                        empresa: EMPRESA,
+                        evento: SHARED_DATA.demandaAtual.evento,
+                        local: SHARED_DATA.demandaAtual.local,
+                        data: SHARED_DATA.demandaAtual.dataEvento // Só data, sem hora
+                    },
+                    profissionais: profissionaisSelecionados.map(prof => ({
+                        nome: prof.nome,
+                        telefone: prof.telefone.toString().replace(/\D/g, ''),
+                        funcao: prof.funcao,
+                        gerente: prof.gerente
+                    })),
+                    lote: 1,
+                    total_lotes: 1,
+                    sistema: 'seven7chat'
+                };
+                
+                console.log('📤 Enviando convocação:', payload);
+                
+                const response = await fetch(CONFIG.N8N_WEBHOOK_CONVOCACAO, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                console.log('📥 Resposta:', result);
+                
+                if (response.ok && result.sucesso !== false) {
+                    // Atualizar data_convocacao na planilha
+                    await atualizarDataConvocacao(indicesSelecionados);
+                    
+                    showToast(`✅ Convocação enviada para ${profissionaisSelecionados.length} profissional(is)!`, 'success');
+                    
+                    // Limpar seleções
+                    checkboxes.forEach(cb => cb.checked = false);
+                    document.getElementById('selectAll').checked = false;
+                    selectedProfessionals.clear();
+                    
+                    // Recarregar dados
+                    setTimeout(() => {
+                        carregarDadosUnificados();
+                    }, 2000);
+                } else {
+                    throw new Error(result.erro || 'Erro no envio');
+                }
+            } catch (error) {
+                console.error('❌ Erro:', error);
+                showToast(`Erro: ${error.message}`, 'error');
+            }
+        }
+
+        // Atualizar data_convocacao na planilha
+        async function atualizarDataConvocacao(indices) {
+            try {
+                const dataConvocacao = new Date().toISOString();
+                
+                // Para cada profissional selecionado, atualizar a data_convocacao
+                for (const index of indices) {
+                    const row = SHARED_DATA.dadosUnificados[index];
+                    if (row) {
+                        // Aqui você precisaria implementar a atualização via n8n
+                        // Por enquanto, só atualizamos localmente
+                        row[9] = dataConvocacao; // Coluna J = data_convocacao
+                    }
+                }
+                
+                console.log('Data de convocação atualizada para:', dataConvocacao);
+            } catch (error) {
+                console.error('Erro ao atualizar data_convocacao:', error);
+            }
+        }
+
         // Notificar gerentes
         async function notificarGerentes() {
             if (!SHARED_DATA.demandaAtual) {
@@ -823,140 +957,70 @@
             }
         }
 
-        // CORREÇÃO: Função enviarConvocacao
-async function enviarConvocacao() {
-    // Verificar se há profissionais selecionados
-    const checkboxes = document.querySelectorAll('#unifiedTableBody input[type="checkbox"]:checked');
-    
-    if (checkboxes.length === 0) {
-        showToast('Selecione pelo menos um profissional na tabela', 'error');
-        return;
-    }
-    
-    if (!SHARED_DATA.demandaAtual) {
-        showToast('Nenhuma demanda ativa', 'error');
-        return;
-    }
-    
-    // Coletar dados dos profissionais selecionados
-    const profissionaisSelecionados = [];
-    checkboxes.forEach(cb => {
-        const index = parseInt(cb.value);
-        const row = SHARED_DATA.dadosUnificados[index];
-        if (row) {
-            profissionaisSelecionados.push({
-                nome: row[0],      // Nome
-                telefone: row[1],  // Telefone
-                funcao: row[2],    // Função
-                gerente: row[3]    // Gerente
-            });
-        }
-    });
-    
-    // CONFIGURAÇÃO IMPORTANTE
-    const EMPRESA = 'FLAP';  // Empresa fixa
-    const WEBHOOK_URL = 'https://n8n.hublanup.com.br/webhook/convocacao-sheets-seven7-empresa';
-    const MODO_TESTE = false; // MUDAR PARA false EM PRODUÇÃO
-    
-    if (MODO_TESTE) {
-        console.log('⚠️ MODO TESTE ATIVADO');
-        // Em teste, enviar apenas 1 profissional com número de teste
-        profissionaisSelecionados.length = 1;
-        profissionaisSelecionados[0].telefone = CONFIG.NUMERO_TESTE;
-    }
-    
-    // Confirmar envio
-    const mensagemConfirmacao = MODO_TESTE ? 
-        `⚠️ MODO TESTE: Enviar para ${CONFIG.NUMERO_TESTE}?` :
-        `Enviar convocação para ${profissionaisSelecionados.length} profissional(is)?`;
-        
-    if (!confirm(mensagemConfirmacao)) {
-        return;
-    }
-    
-    try {
-        showToast('Enviando convocação...', 'info');
-        
-        // Preparar payload no formato esperado pelo n8n
-        const payload = {
-            demanda: {
-                empresa: EMPRESA,
-                evento: SHARED_DATA.demandaAtual.evento,
-                local: SHARED_DATA.demandaAtual.local,
-                data: SHARED_DATA.demandaAtual.dataEvento
-            },
-            profissionais: profissionaisSelecionados.map(prof => ({
-                nome: prof.nome,
-                telefone: prof.telefone.toString().replace(/\D/g, ''),
-                funcao: prof.funcao,
-                gerente: prof.gerente
-            })),
-            lote: 1,
-            total_lotes: 1,
-            sistema: 'seven7chat'
-        };
-        
-        console.log('📤 Enviando:', payload);
-        
-        const response = await fetch(WEBHOOK_URL, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
-        
-        const result = await response.json();
-        console.log('📥 Resposta:', result);
-        
-        if (response.ok && result.sucesso !== false) {
-            showToast(`✅ Convocação enviada com sucesso!`, 'success');
-            
-            // Limpar seleções
-            checkboxes.forEach(cb => cb.checked = false);
-            document.getElementById('selectAll').checked = false;
-            selectedProfessionals.clear();
-            
-            if (MODO_TESTE) {
-                setTimeout(() => {
-                    showToast(`📱 Verifique WhatsApp: ${CONFIG.NUMERO_TESTE}`, 'info');
-                }, 2000);
-            }
-        } else {
-            throw new Error(result.erro || 'Erro no envio');
-        }
-    } catch (error) {
-        console.error('❌ Erro:', error);
-        showToast(`Erro: ${error.message}`, 'error');
-    }
-}
-
-        // Encerrar demanda
+        // FUNÇÃO CORRIGIDA: Encerrar demanda
         async function encerrarDemanda() {
             if (!SHARED_DATA.demandaAtual) {
                 showToast('Nenhuma demanda ativa', 'error');
                 return;
             }
             
-            if (confirm('Deseja realmente encerrar a demanda?')) {
-                try {
-                    const response = await fetch(`${CONFIG.N8N_WEBHOOK}/encerrar-demanda`, {
+            if (!confirm('Deseja realmente encerrar a demanda? Os dados serão consolidados.')) {
+                return;
+            }
+            
+            try {
+                showToast('Encerrando demanda...', 'info');
+                
+                // 1. Copiar dados_unificados para dados_unificados_consolidado
+                if (SHARED_DATA.dadosUnificados.length > 0) {
+                    const response = await fetch(`${CONFIG.N8N_WEBHOOK}/consolidar-demanda`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             demandaId: SHARED_DATA.demandaAtual.evento,
+                            dados: SHARED_DATA.dadosUnificados,
                             timestamp: new Date().toISOString()
                         })
                     });
                     
-                    showToast('Demanda encerrada', 'success');
-                    SHARED_DATA.demandaAtual = null;
-                    document.getElementById('currentDemand').innerHTML = 'Nenhuma demanda ativa';
-                } catch (error) {
-                    console.error(error);
-                    showToast('Erro ao encerrar demanda', 'error');
+                    if (!response.ok) {
+                        console.error('Erro ao consolidar dados');
+                    }
                 }
+                
+                // 2. Marcar demanda como ENCERRADA na planilha eventos_criados
+                const encerrarResponse = await fetch(`${CONFIG.N8N_WEBHOOK}/encerrar-demanda`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        demandaId: SHARED_DATA.demandaAtual.evento,
+                        timestamp: new Date().toISOString()
+                    })
+                });
+                
+                if (encerrarResponse.ok) {
+                    showToast('Demanda encerrada com sucesso!', 'success');
+                    
+                    // Limpar dados locais
+                    SHARED_DATA.demandaAtual = null;
+                    SHARED_DATA.dadosUnificados = [];
+                    
+                    // Atualizar interface
+                    document.getElementById('currentDemand').innerHTML = 'Nenhuma demanda ativa';
+                    document.getElementById('receivedScales').innerHTML = '<strong>0</strong> escalas recebidas';
+                    document.getElementById('totalSelected').innerHTML = '<strong>0</strong> profissionais';
+                    
+                    // Se a tabela estiver aberta, limpar
+                    const tbody = document.getElementById('unifiedTableBody');
+                    if (tbody) {
+                        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Nenhuma escala disponível</td></tr>';
+                    }
+                } else {
+                    throw new Error('Erro ao encerrar demanda no servidor');
+                }
+            } catch (error) {
+                console.error('Erro ao encerrar demanda:', error);
+                showToast(`Erro ao encerrar demanda: ${error.message}`, 'error');
             }
         }
 
