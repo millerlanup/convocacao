@@ -824,8 +824,6 @@
         }
 
         // CORREÇÃO: Função enviarConvocacao
-// Substitua a função enviarConvocacao no seu HTML por esta versão corrigida:
-
 async function enviarConvocacao() {
     // Verificar se há profissionais selecionados
     const checkboxes = document.querySelectorAll('#unifiedTableBody input[type="checkbox"]:checked');
@@ -855,49 +853,82 @@ async function enviarConvocacao() {
         }
     });
     
-    if (profissionaisSelecionados.length === 0) {
-        showToast('Erro ao coletar dados dos profissionais', 'error');
-        return;
+    // CONFIGURAÇÃO IMPORTANTE
+    const EMPRESA = 'FLAP';  // Empresa fixa
+    const WEBHOOK_URL = 'https://n8n.hublanup.com.br/webhook/convocacao-sheets-seven7-empresa';
+    const MODO_TESTE = true; // MUDAR PARA false EM PRODUÇÃO
+    
+    if (MODO_TESTE) {
+        console.log('⚠️ MODO TESTE ATIVADO');
+        // Em teste, enviar apenas 1 profissional com número de teste
+        profissionaisSelecionados.length = 1;
+        profissionaisSelecionados[0].telefone = CONFIG.NUMERO_TESTE;
     }
     
     // Confirmar envio
-    const confirmMessage = `Enviar convocação para ${profissionaisSelecionados.length} profissional(is)?`;
-    if (!confirm(confirmMessage)) {
+    const mensagemConfirmacao = MODO_TESTE ? 
+        `⚠️ MODO TESTE: Enviar para ${CONFIG.NUMERO_TESTE}?` :
+        `Enviar convocação para ${profissionaisSelecionados.length} profissional(is)?`;
+        
+    if (!confirm(mensagemConfirmacao)) {
         return;
     }
     
     try {
-        showToast(`Enviando convocação para ${profissionaisSelecionados.length} profissional(is)...`, 'info');
+        showToast('Enviando convocação...', 'info');
         
-        // Enviar para o n8n
-        const response = await fetch(`${CONFIG.N8N_WEBHOOK}/enviar-convocacao`, {
+        // Preparar payload no formato esperado pelo n8n
+        const payload = {
+            demanda: {
+                empresa: EMPRESA,
+                evento: SHARED_DATA.demandaAtual.evento,
+                local: SHARED_DATA.demandaAtual.local,
+                data: SHARED_DATA.demandaAtual.dataEvento
+            },
+            profissionais: profissionaisSelecionados.map(prof => ({
+                nome: prof.nome,
+                telefone: prof.telefone.toString().replace(/\D/g, ''),
+                funcao: prof.funcao,
+                gerente: prof.gerente
+            })),
+            lote: 1,
+            total_lotes: 1,
+            sistema: 'seven7chat'
+        };
+        
+        console.log('📤 Enviando:', payload);
+        
+        const response = await fetch(WEBHOOK_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                demanda: {
-                    evento: SHARED_DATA.demandaAtual.evento,
-                    local: SHARED_DATA.demandaAtual.local,
-                    dataEvento: SHARED_DATA.demandaAtual.dataEvento,
-                    dataLimite: SHARED_DATA.demandaAtual.dataLimite
-                },
-                profissionais: profissionaisSelecionados,
-                timestamp: new Date().toISOString()
-            })
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
         });
         
-        if (response.ok) {
-            showToast(`Convocação enviada para ${profissionaisSelecionados.length} profissional(is)!`, 'success');
+        const result = await response.json();
+        console.log('📥 Resposta:', result);
+        
+        if (response.ok && result.sucesso !== false) {
+            showToast(`✅ Convocação enviada com sucesso!`, 'success');
             
-            // Desmarcar checkboxes após envio
+            // Limpar seleções
             checkboxes.forEach(cb => cb.checked = false);
             document.getElementById('selectAll').checked = false;
             selectedProfessionals.clear();
+            
+            if (MODO_TESTE) {
+                setTimeout(() => {
+                    showToast(`📱 Verifique WhatsApp: ${CONFIG.NUMERO_TESTE}`, 'info');
+                }, 2000);
+            }
         } else {
-            throw new Error('Erro na resposta do servidor');
+            throw new Error(result.erro || 'Erro no envio');
         }
     } catch (error) {
-        console.error('Erro ao enviar convocação:', error);
-        showToast('Erro ao enviar convocação. Verifique o n8n.', 'error');
+        console.error('❌ Erro:', error);
+        showToast(`Erro: ${error.message}`, 'error');
     }
 }
 
