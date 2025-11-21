@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Convocação - MBL</title>
+    <title>Sistema de Convocação - PREMIER RH</title>
     <style>
         * {
             margin: 0;
@@ -408,7 +408,7 @@
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <div class="flap-badge">MBL</div>
+            <div class="flap-badge">PREMIER RH</div>
             <h1>Sistema de Convocação - premier</h1>
             <p>Processamento em Lotes</p>
         </div>
@@ -558,9 +558,9 @@
         const GOOGLE_SHEETS_API_KEY = 'AIzaSyCCvdIC0TnINvn5s3TPwufzos-6sxZYFHk';
         const SPREADSHEET_ID = '1ML4LMfZSlqdZd_4JSYeSCwm3taHzaZ8UOTyex1V23XI';
         const SHEET_NAME = 'Profissionais_Aptos';
-        const N8N_WEBHOOK_URL = 'https://n8n.hublanup.com.br/webhook/convocacao-sheets-seven7-mbl';
+        const N8N_WEBHOOK_URL = 'https://n8n.hublanup.com.br/webhook/convocacao-sheets-seven7-premier';
         const TAMANHO_LOTE_FIXO = 100; // Tamanho fixo do lote
-        const EMPRESA_FIXA = 'MBL'; // Empresa fixa
+        const EMPRESA_FIXA = 'PREMIER RH'; // Empresa fixa
         
         let profissionais = [];
         let selecionados = [];
@@ -571,7 +571,7 @@
         window.addEventListener('load', function() {
             document.getElementById('data').valueAsDate = new Date();
             setTimeout(() => {
-                mostrarToast('Sistema de convocação MBL pronto', 'info');
+                mostrarToast('Sistema de convocação PREMIER RH pronto', 'info');
             }, 500);
         });
 
@@ -811,7 +811,7 @@
 
             // Validar dados da demanda
             const dadosDemanda = {
-                empresa: EMPRESA_FIXA, // Sempre MBL
+                empresa: EMPRESA_FIXA, // Sempre PREMIER RH
                 evento: document.getElementById('evento').value.trim(),
                 local: document.getElementById('local').value.trim(),
                 data: document.getElementById('data').value,
